@@ -1,32 +1,32 @@
+// utils/api.js
 import axios from 'axios';
-import { getSession } from 'next-auth/react';
 
-// Create base API instance
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
+
+// Debug: Log API URL when creating the api instance
+console.log('Creating API instance with URL:', API_URL);
+
+if (!API_URL) {
+  console.error('API_URL is not defined! Check your environment variables.');
+}
+
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL,
+  baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
 // Request interceptor for authentication
-api.interceptors.request.use(
-  async (config) => {
-    try {
-      const session = await getSession();
-      if (session?.accessToken) {
-        config.headers.Authorization = `Bearer ${session.accessToken}`;
-      }
-      return config;
-    } catch (error) {
-      console.error('Error in request interceptor:', error);
-      return config;
-    }
-  },
-  (error) => {
-    return Promise.reject(error);
+api.interceptors.request.use(async (config) => {
+  try {
+    // You can add auth token handling here if needed
+    return config;
+  } catch (error) {
+    console.error('Error in request interceptor:', error);
+    return config;
   }
-);
+});
 
 // Response interceptor for error handling
 api.interceptors.response.use(
@@ -37,8 +37,7 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       // Handle unauthorized access
       console.error('Unauthorized access');
-      // You might want to redirect to login
-      window.location.href = '/auth/signin';
+      window.location.href = '/login';
     }
     
     return Promise.reject(error);
@@ -60,11 +59,31 @@ export const authApi = {
       }
     ),
     
-  register: (userData) => 
-    api.post('/users/register', {
-      email: userData.email,
-      password: userData.password,
-    }),
+  register: async (userData) => {
+    console.log('Making registration request:', {
+      url: `${API_URL}/users/register`,
+      data: {
+        email: userData.email,
+        passwordLength: userData.password.length
+      }
+    });
+
+    try {
+      const response = await api.post('/users/register', {
+        email: userData.email,
+        password: userData.password,
+      });
+      return response;
+    } catch (error) {
+      console.error('Registration request failed:', {
+        url: `${API_URL}/users/register`,
+        error: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
+      throw error;
+    }
+  }
 };
 
 // Resume API endpoints
