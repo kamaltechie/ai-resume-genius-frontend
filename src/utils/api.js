@@ -1,46 +1,73 @@
 import axios from 'axios';
 import { getSession } from 'next-auth/react';
 
+// Create base API instance
 const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL,
-});
-api.interceptors.request.use(async (config) => {
-  const session = await getSession();
-  if (session?.accessToken) {
-    config.headers.Authorization = `Bearer ${session.accessToken}`;
-  }
-  return config;
+  headers: {
+    'Content-Type': 'application/json',
+  },
 });
 
+// Request interceptor for authentication
+api.interceptors.request.use(
+  async (config) => {
+    try {
+      const session = await getSession();
+      if (session?.accessToken) {
+        config.headers.Authorization = `Bearer ${session.accessToken}`;
+      }
+      return config;
+    } catch (error) {
+      console.error('Error in request interceptor:', error);
+      return config;
+    }
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Response interceptor for error handling
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    console.error('API Error:', error.response?.data || error.message);
+    
+    if (error.response?.status === 401) {
+      // Handle unauthorized access
+      console.error('Unauthorized access');
+      // You might want to redirect to login
+      window.location.href = '/auth/signin';
+    }
+    
+    return Promise.reject(error);
+  }
+);
+
+// Auth API endpoints
 export const authApi = {
   login: (credentials) => 
-    axios.post(
-      `${process.env.NEXT_PUBLIC_API_URL}/token`,
+    api.post('/token', 
       new URLSearchParams({
         username: credentials.email,
         password: credentials.password,
-      }),
+      }).toString(),
       {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
       }
     ),
+    
   register: (userData) => 
-    axios.post(
-      `${process.env.NEXT_PUBLIC_API_URL}/users/register`,
-      {
-        email: userData.email,
-        password: userData.password,
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      }
-    ),
+    api.post('/users/register', {
+      email: userData.email,
+      password: userData.password,
+    }),
 };
 
+// Resume API endpoints
 export const resumeApi = {
   create: (data) => api.post('/resumes', data),
   getAll: () => api.get('/resumes'),
@@ -52,6 +79,7 @@ export const resumeApi = {
     api.post(`/ai/optimize_resume?resume_id=${resumeId}&job_id=${jobId}`),
 };
 
+// Job API endpoints
 export const jobApi = {
   create: (data) => api.post('/job_descriptions', data),
   getAll: () => api.get('/job_descriptions'),
@@ -60,24 +88,17 @@ export const jobApi = {
   delete: (id) => api.delete(`/job_descriptions/${id}`),
 };
 
-// Add CORS headers to all requests
-api.interceptors.request.use((config) => {
-  config.headers['Access-Control-Allow-Origin'] = '*';
-  config.headers['Access-Control-Allow-Methods'] = 'GET,PUT,POST,DELETE,PATCH,OPTIONS';
-  return config;
-});
+// Debug logging in development
+if (process.env.NODE_ENV === 'development') {
+  api.interceptors.request.use(request => {
+    console.log('Starting Request:', request);
+    return request;
+  });
 
-// Add error handling
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      // Handle unauthorized access
-      console.error('Unauthorized access');
-      // You might want to redirect to login or refresh token
-    }
-    return Promise.reject(error);
-  }
-);
+  api.interceptors.response.use(response => {
+    console.log('Response:', response);
+    return response;
+  });
+}
 
 export default api;
