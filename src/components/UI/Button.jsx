@@ -6,6 +6,7 @@ export default function Button({ children, onClick, type = 'button', variant = '
       danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500',
     };
   
+    
     return (
       <button
         type={type}
